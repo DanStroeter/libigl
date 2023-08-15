@@ -63,6 +63,15 @@ namespace igl
     const Eigen::MatrixBase<DerivedV>& V,
     const std::vector<std::vector<T> >& F);
 
+
+ template <typename DerivedV, typename DerivedF>
+  IGL_INLINE bool writeOBJ(
+    const std::string str,
+    const Eigen::MatrixBase<DerivedV>& V,
+    const Eigen::MatrixBase<DerivedF>& F,
+    const Eigen::MatrixBase<DerivedV>& colors);
+
+
 }
 
 #ifndef IGL_STATIC_LIBRARY

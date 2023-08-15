@@ -118,6 +118,41 @@ IGL_INLINE bool igl::writeOBJ(
   return true;
 }
 
+template <typename DerivedV, typename DerivedF>
+IGL_INLINE bool igl::writeOBJ(
+  const std::string str,
+  const Eigen::MatrixBase<DerivedV>& V,
+  const Eigen::MatrixBase<DerivedF>& F,
+  const Eigen::MatrixBase<DerivedV>& colors)
+{
+  using namespace std;
+  using namespace Eigen;
+  assert(V.cols() == 3 && "V should have 3 columns");
+  assert(colors.rows() == V.rows());
+  ofstream s(str);
+  if(!s.is_open())
+  {
+    fprintf(stderr,"IOError: writeOBJ() could not open %s\n",str.c_str());
+    return false;
+  }
+  for(int i = 0;i<(int)V.rows();i++)
+  {
+    s << "v ";
+    for(int j = 0;j<(int)V.cols();++j)
+    {
+      s << std::fixed << std::setprecision(17) << V(i,j) << " ";
+    }
+    for(int j = 0;j<(int)colors.cols();++j)
+    {
+      s << std::fixed << std::setprecision(17) << colors(i,j) << " ";
+    }
+    s << "\n";
+  }
+  s<<
+    (F.array()+1).format(IOFormat(FullPrecision,DontAlignCols," ","\n","f ","","","\n"));
+  return true;
+}
+
 template <typename DerivedV, typename T>
 IGL_INLINE bool igl::writeOBJ(
   const std::string &str,
