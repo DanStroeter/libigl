@@ -5,6 +5,7 @@
 
 #include <igl/readOBJ.h>
 #include <igl/readMSH.h>
+#include <igl/EPS.h>
 
 template<typename vec, typename T>
 void scale_verts(std::vector<vec>& verts, T fac)
@@ -110,7 +111,7 @@ bool load_mesh(std::string const& file_name, Eigen::MatrixXd& V, Eigen::MatrixXi
 
 bool load_cage(std::string const& file_name, Eigen::MatrixXd& V,
 	Eigen::VectorXi & P, Eigen::MatrixXi & CF, double scaling_factor, bool triangulate_quads,
-	Eigen::MatrixXd * V_embedding /*= nullptr*/)
+	Eigen::MatrixXd * V_embedding /*= nullptr*/, bool find_offset /*= false*/)
 {
 	if (file_name.substr(file_name.size() - 4, 4).compare(".obj"))
 	{
@@ -125,15 +126,54 @@ bool load_cage(std::string const& file_name, Eigen::MatrixXd& V,
 		return false;
 	}
 
+	int cage_vertices_offset = 0;
+
 	if (V_embedding)
 	{
+		if (find_offset)
+		{
+			auto verices_equal = [](const Eigen::Vector3d& a, const Eigen::Vector3d& b)
+			{
+				return abs(a(0) - b(0)) < igl::FLOAT_EPS && abs(a(1) - b(1)) < igl::FLOAT_EPS && abs(a(2) - b(2)) < igl::FLOAT_EPS;
+			};
+
+			const Eigen::Vector3d first_cage_vert = V.row(0);
+			bool found = false;
+			for (int i = 0; i < V_embedding->rows(); ++i)
+			{
+				const Eigen::Vector3d embedding_vert = V_embedding->row(i);
+				if (verices_equal(first_cage_vert, embedding_vert))
+				{
+					found = true;
+					cage_vertices_offset = i;
+					break;
+				}
+			}
+			if (found)
+			{
+				std::cout << "Found cage verts in embedding with an offset of " << cage_vertices_offset << "\n";
+			}
+			else
+			{
+				std::cerr << "Could not find cage verts in embedding\n";
+				return 1;
+			}
+		}
 		for (int i = 0; i < V.rows(); ++i)
 		{
-			V.row(i) = V_embedding->row(i);
+			V.row(i) = V_embedding->row(i + cage_vertices_offset);
+		}
+		for (int i = 0; i < CF.rows(); ++i)
+		{
+			for (int j = 0; j < 3; ++j)
+			{
+				CF(i, j) += cage_vertices_offset;
+			}
 		}
 	}
 
 	P.resize(V.rows());
+	P.fill(0);
 	for (int i = 0; i < V.rows(); ++i)
 	{
 		P(i) = i;

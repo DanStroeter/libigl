@@ -10,7 +10,7 @@
 #include "LoadMesh.h"
 
 #include <boost/program_options.hpp>
-// #define VERBOSE
+#define VERBOSE
 #include <igl/bbw.h>
 #include <igl/boundary_conditions.h>
 #include <igl/harmonic.h>
@@ -119,37 +119,42 @@ int main(int argc, char** argv)
 		return 1;
 	}
 
-	int cage_vertices_offset = 0;
+	int model_vertices_offset = 0, cage_vertices_offset = 0;
 
+	// Finding model verts in embedding
 	if (find_offset && !green && !QGC)
 	{
-		auto const first_model_vert = V_model.row(0);
+		auto verices_equal = [](const Eigen::Vector3d& a, const Eigen::Vector3d& b)
+		{
+			return abs(a(0) - b(0)) < igl::FLOAT_EPS && abs(a(1) - b(1)) < igl::FLOAT_EPS && abs(a(2) - b(2)) < igl::FLOAT_EPS;
+		};
+
+		const Eigen::Vector3d first_model_vert = V_model.row(0);
 		bool found = false;
 		for (int i = 0; i < V.rows(); ++i)
 		{
-			auto const embedding_vert = V.row(i);
-			if (abs(first_model_vert[0] - embedding_vert[0]) < igl::FLOAT_EPS && abs(first_model_vert[1] - embedding_vert[1]) < igl::FLOAT_EPS &&
-				abs(first_model_vert[2] - embedding_vert[2]) < igl::FLOAT_EPS)
+			const Eigen::Vector3d embedding_vert = V.row(i);
+			if (verices_equal(first_model_vert, embedding_vert))
 			{
 				found = true;
-				cage_vertices_offset = i;
+				model_vertices_offset = i;
 				break;
 			}
 		}
 		if (found)
 		{
-			std::cout << "Found model verts in embedding with an offset of " << cage_vertices_offset << "\n";
+			std::cout << "Found model verts in embedding with an offset of " << model_vertices_offset << "\n";
 		}
 		else
 		{
-			std::cout << "Could not find model verts in embedding\n";
+			std::cerr << "Could not find model verts in embedding\n";
 			return 1;
 		}
 	}
 	else if (!green && !QGC)
 	{
-		auto const additional_offset = no_offset ? 0 : V.rows() - (V_model.rows() + cage_vertices_offset);
-		cage_vertices_offset += additional_offset;
+		auto const additional_offset = no_offset ? 0 : V.rows() - (V_model.rows() + model_vertices_offset);
+		model_vertices_offset += additional_offset;
 		std::cout << "Adding an offset of " << additional_offset << "\n";
 		std::cout << "Loading embedding\n";
 	}
@@ -159,7 +164,7 @@ int main(int argc, char** argv)
 	Eigen::VectorXi P;
 	Eigen::MatrixXi CF, BE, CE;
 
-	if (!load_cage(cageFile, C, P, CF, scaling_factor, !QGC, (!green && !QGC) ? &V : nullptr))
+	if (!load_cage(cageFile, C, P, CF, scaling_factor, !QGC, (!green && !QGC) ? &V : nullptr, find_offset))
 	{
 		std::cerr << "Failed to load cage!\n";
 		return 1;
@@ -167,7 +172,7 @@ int main(int argc, char** argv)
 
 	if (!find_offset)
 	{
-		cage_vertices_offset = C.rows();
+		model_vertices_offset = C.rows();
 	}
 
 	if (load_deformed_cage)
@@ -183,8 +188,6 @@ int main(int argc, char** argv)
 
 	auto const suffix_pos = outMeshFile.find(".");
 	const bool write_msh = outMeshFile.substr(suffix_pos + 1, outMeshFile.size()).compare("btet") == 0;
-
-	//igl::writeOBJ("C:/Users/dastroet/Blender/Cages_Horse/obj/cage_horse_triangulated.obj", C, CF);
 
 	Eigen::MatrixXd normals;
 	std::vector<double> psi_tri;
@@ -388,7 +391,7 @@ int main(int argc, char** argv)
 	{
 		auto const base_name = outMeshFile.substr(0, suffix_pos);
 		write_influence_color_map_OBJ(base_name + "_influence_" + variant_string + ".obj", V_model, T_model, W, control_vertices_idx,
-			(green || QGC) ? 0 : cage_vertices_offset, green || QGC);
+			(green || QGC) ? 0 : model_vertices_offset, green || QGC);
 	}
 
 	auto const numTransformations = numControlVertices;
@@ -429,7 +432,6 @@ int main(int argc, char** argv)
 			calcNormals(C_deformed, CF, normals_deformed);
 			calcScalingFactors(C, C_deformed, CF, normals_deformed);
 			U_model = W.transpose() * C_deformed + psi.transpose() * normals_deformed;
-			std::cout << normals_deformed;
 		}
 		else if (QGC)
 		{
@@ -444,7 +446,7 @@ int main(int argc, char** argv)
 		{
 			for (int j = 0; j < V_model.rows(); ++j)
 			{
-				U_model.row(j) = U.row(j + cage_vertices_offset);
+				U_model.row(j) = U.row(j + model_vertices_offset);
 				if (i == 0)
 				{
 					Eigen::Vector3d a = U_model.row(j);
