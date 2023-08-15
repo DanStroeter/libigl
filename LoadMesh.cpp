@@ -69,7 +69,9 @@ bool load_mesh(std::string const& file_name, Eigen::MatrixXd& V, Eigen::MatrixXi
 {
 	if (file_name.substr(file_name.size() - 4, 4).compare(".msh") == 0)
 	{
-		if (!igl::readMSH(file_name, V, Eigen::MatrixXi(), T, Eigen::VectorXi(), Eigen::VectorXi()))
+		Eigen::MatrixXi Triangles;
+		Eigen::VectorXi TriTags, TetTags;
+		if (!igl::readMSH(file_name, V, Triangles, T, TriTags, TetTags))
 		{
 			std::cerr << "Failed to load " << file_name << "\n";
 			return false;

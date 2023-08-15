@@ -183,7 +183,7 @@ bool computeUnnormalizedMVCForOneTriangle(
 	point_t* tri_vertices,
 	float_t* w_weights)
 {
-	typedef typename double   T;
+	typedef double   T;
 
 	T epsilon = 0.000000001;
 
@@ -398,7 +398,7 @@ void smoothProjectOnQuad(point_t const& eta, point_t* quad_vertices, double& uPr
 
 template< class point_t >
 double get_signed_solid_angle(point_t const& a, point_t const& b, point_t const& c) {
-	typedef typename double    T;
+	typedef double    T;
 	T det = a.dot(b.cross(c));
 	if (fabs(det) < 0.0000000001) // then you're on the limit case where you cover half the sphere
 		return 2.0 * M_PI; // that is particularly shitty, because the sign is difficult to estimate...
@@ -419,7 +419,7 @@ void computePhiAndPsiForOneTriangle(point_t const& eta,
 	point_t* tri_vertices, // an array of 3 points
 	float_t* phi, // an array of 3 floats
 	float_t& psi) {
-	typedef typename double    T;
+	typedef double    T;
 	point_t Nt = (tri_vertices[1] - tri_vertices[0]).cross(tri_vertices[2] - tri_vertices[0]);
 	T NtNorm = Nt.norm();
 	T At = NtNorm / 2.0;

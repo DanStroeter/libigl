@@ -177,7 +177,9 @@ int main(int argc, char** argv)
 
 	if (load_deformed_cage)
 	{
-		if (!load_cage(cageDeformedFile, C_deformed, Eigen::VectorXi(), Eigen::MatrixXi(), scaling_factor, !QGC))
+		Eigen::VectorXi P_deformed;
+		Eigen::MatrixXi CF_deformed;
+		if (!load_cage(cageDeformedFile, C_deformed, P_deformed, CF_deformed, scaling_factor, !QGC))
 		{
 			std::cerr << "Failed to load deformed cage!\n";
 			return 1;
