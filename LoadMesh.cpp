@@ -165,13 +165,6 @@ bool load_cage(std::string const& file_name, Eigen::MatrixXd& V,
 		{
 			V.row(i) = V_embedding->row(i + cage_vertices_offset);
 		}
-		for (int i = 0; i < CF.rows(); ++i)
-		{
-			for (int j = 0; j < 3; ++j)
-			{
-				CF(i, j) += cage_vertices_offset;
-			}
-		}
 	}
 
 	P.resize(V.rows());

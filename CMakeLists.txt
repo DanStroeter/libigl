@@ -32,6 +32,8 @@ set(${PROJECT_NAME}_SOURCES
 	InfluenceMap.cpp
 	Parametrization.h
 	Parametrization.cpp
+	WeightInterpolation.h
+	WeightInterpolation.cpp
 )
 
 add_executable(${PROJECT_NAME} ${${PROJECT_NAME}_SOURCES})

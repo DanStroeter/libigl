@@ -8,9 +8,10 @@
 #include "InfluenceMap.h"
 #include "Parametrization.h"
 #include "LoadMesh.h"
+#include "WeightInterpolation.h"
 
 #include <boost/program_options.hpp>
-#define VERBOSE
+//#define VERBOSE
 #include <igl/bbw.h>
 #include <igl/boundary_conditions.h>
 #include <igl/harmonic.h>
@@ -21,8 +22,6 @@
 #include <igl/writeDMAT.h>
 #include <igl/readDMAT.h>
 #include <LBCSolver.h>
-
-#include <Eigen/Geometry>
 
 int main(int argc, char** argv)
 {
@@ -46,6 +45,7 @@ int main(int argc, char** argv)
 		("iter", boost::program_options::value<int>(&numBBWSteps), "The number of iterations for calculating BBW or LBC")
 		("lbc-scheme", boost::program_options::value<int>(&lbc_scheme), "The weighting scheme for lbc")
 		("influence", "Evaluate the influence of the control vertices involved in the deformation and write the plot (Mesh for OBJ) to file")
+		("interpolate-weights", "Interpolate weights of model vertices from the embedding (embedding does not contain vertices of model)")
 		("harmonic", "Use harmonic coordinates by Joshi et al.")
 		("LBC", "Use local barycentric coordinates by Zhang et al.")
 		("green", "Use green coordinates by Lipman et al.")
@@ -60,11 +60,12 @@ int main(int argc, char** argv)
 	const bool lbc = !harmonic && static_cast<bool>(vm.count("LBC"));
 	const bool green = !lbc && !harmonic && static_cast<bool>(vm.count("green"));
 	const bool QGC = !lbc && !harmonic && !green && static_cast<bool>(vm.count("QGC"));
-	const bool no_offset = static_cast<bool>(vm.count("no-offset"));
 	const bool find_offset = static_cast<bool>(vm.count("find-offset"));
 	const bool scale = static_cast<bool>(vm.count("scale"));
 	const bool influence = static_cast<bool>(vm.count("influence"));
 	const bool load_deformed_cage = static_cast<bool>(vm.count("cage-deformed"));
+	const bool interpolate_weights = static_cast<bool>(vm.count("interpolate-weights"));
+	const bool no_offset = static_cast<bool>(vm.count("no-offset")) || interpolate_weights;
 
 	// Display help page if requested
 	if (vm.count("help"))
@@ -122,7 +123,7 @@ int main(int argc, char** argv)
 	int model_vertices_offset = 0, cage_vertices_offset = 0;
 
 	// Finding model verts in embedding
-	if (find_offset && !green && !QGC)
+	if (!interpolate_weights && find_offset && !green && !QGC)
 	{
 		auto verices_equal = [](const Eigen::Vector3d& a, const Eigen::Vector3d& b)
 		{
@@ -170,9 +171,14 @@ int main(int argc, char** argv)
 		return 1;
 	}
 
-	if (!find_offset)
+	if (!find_offset && !interpolate_weights)
 	{
 		model_vertices_offset = C.rows();
+	}
+
+	if (!green && !QGC)
+	{
+		std::cout << "Using " << model_vertices_offset << " as offset for model vertices in embedding\n";
 	}
 
 	if (load_deformed_cage)
@@ -211,7 +217,7 @@ int main(int argc, char** argv)
 		calcNormals(C, CF, normals);
 	}
 	// compute BBW weights matrix
-	Eigen::MatrixXd W, psi;
+	Eigen::MatrixXd W, W_interpolated, psi;
 	std::cout << "Computing weights\n";
 	if (harmonic)
 	{
@@ -370,14 +376,21 @@ int main(int argc, char** argv)
 		M = W;
 	}
 	else {
-		igl::lbs_matrix(V, W, M);
+		if (interpolate_weights)
+		{
+			interpolateWeightsInEmbedding(V_model, W, V, T, C.rows(), W_interpolated, M);
+		}
+		else
+		{
+			igl::lbs_matrix(V, W, M);
+		}
 	}
 	std::cout << "Done Calculating M\n";
 	const int dim = C.cols();
 	auto translationFactors = createRegularSampling(numSamples, params.minFactor, params.maxFactor);
 	auto const numControlVertices = C.rows();
 	std::vector<uint8_t> control_vertices_marked(numControlVertices, 0);
-	std::vector<int> control_vertices_idx = { 32 };
+	std::vector<int> control_vertices_idx;
 	for (auto it = params.translations_per_vertex.begin(), end = params.translations_per_vertex.end(); it != end; ++it)
 	{
 		auto const control_vertex_idx = it->first;
@@ -392,8 +405,8 @@ int main(int argc, char** argv)
 	if (influence)
 	{
 		auto const base_name = outMeshFile.substr(0, suffix_pos);
-		write_influence_color_map_OBJ(base_name + "_influence_" + variant_string + ".obj", V_model, T_model, W, control_vertices_idx,
-			(green || QGC) ? 0 : model_vertices_offset, green || QGC);
+		write_influence_color_map_OBJ(base_name + "_influence_" + variant_string + ".obj", V_model, T_model, interpolate_weights ? W_interpolated : W,
+			control_vertices_idx, (green || QGC || interpolate_weights) ? 0 : model_vertices_offset, green || QGC);
 	}
 
 	auto const numTransformations = numControlVertices;
@@ -473,8 +486,8 @@ int main(int argc, char** argv)
 		}
 		else
 		{
-			igl::writeOBJ(prefix + middle + variant_string + std::string(".obj"), U_model, T_model);
 			std::cout << "Writing " << prefix + middle + variant_string + std::string(".obj") << "\n";
+			igl::writeOBJ(prefix + middle + variant_string + std::string(".obj"), U_model, T_model);
 		}
 	}
 
