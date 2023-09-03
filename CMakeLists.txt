@@ -26,6 +26,8 @@ set(${PROJECT_NAME}_SOURCES
 	main.cpp
 	GreenCoordinates.h
 	GreenCoordinates.cpp
+	MaximumLikelihoodCoordinates.h
+	MaximumLikelihoodCoordinates.cpp
 	LoadMesh.h
 	LoadMesh.cpp
 	InfluenceMap.h

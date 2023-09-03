@@ -5,6 +5,7 @@
 #include <fstream>
 
 #include "GreenCoordinates.h"
+#include "MaximumLikelihoodCoordinates.h"
 #include "InfluenceMap.h"
 #include "Parametrization.h"
 #include "LoadMesh.h"
@@ -50,6 +51,7 @@ int main(int argc, char** argv)
 		("LBC", "Use local barycentric coordinates by Zhang et al.")
 		("green", "Use green coordinates by Lipman et al.")
 		("QGC", "Use tri-quad green coordinates")
+		("MLC", "Use maximum likelihood coordinates by Chang et al.")
 		("subspace", "Use Linear subspace design by Wang et al.");
 	boost::program_options::positional_options_description p;
 	boost::program_options::variables_map vm;
@@ -60,6 +62,7 @@ int main(int argc, char** argv)
 	const bool lbc = !harmonic && static_cast<bool>(vm.count("LBC"));
 	const bool green = !lbc && !harmonic && static_cast<bool>(vm.count("green"));
 	const bool QGC = !lbc && !harmonic && !green && static_cast<bool>(vm.count("QGC"));
+	const bool MLC = !QGC && !lbc && !harmonic && !green && static_cast<bool>(vm.count("MLC"));
 	const bool find_offset = static_cast<bool>(vm.count("find-offset"));
 	const bool scale = static_cast<bool>(vm.count("scale"));
 	const bool influence = static_cast<bool>(vm.count("influence"));
@@ -99,13 +102,13 @@ int main(int argc, char** argv)
 		return 1;
 	}
 
-	if (!green && !QGC && !vm.count("embedded"))
+	if (!green && !QGC && !MLC && !vm.count("embedded"))
 	{
 		std::cerr << "You must specify an embedding!\n";
 		return 1;
 	}
 
-	if (!green && !QGC)
+	if (!green && !QGC && !MLC)
 	{
 		std::cout << "Loading the embedding\n";
 		if (!load_mesh(embeddedMeshFile, V, T, scaling_factor))
@@ -123,7 +126,7 @@ int main(int argc, char** argv)
 	int model_vertices_offset = 0, cage_vertices_offset = 0;
 
 	// Finding model verts in embedding
-	if (!interpolate_weights && find_offset && !green && !QGC)
+	if (!interpolate_weights && find_offset && !green && !QGC && !MLC)
 	{
 		auto verices_equal = [](const Eigen::Vector3d& a, const Eigen::Vector3d& b)
 		{
@@ -152,7 +155,7 @@ int main(int argc, char** argv)
 			return 1;
 		}
 	}
-	else if (!green && !QGC)
+	else if (!green && !QGC && !MLC)
 	{
 		auto const additional_offset = no_offset ? 0 : V.rows() - (V_model.rows() + model_vertices_offset);
 		model_vertices_offset += additional_offset;
@@ -165,7 +168,7 @@ int main(int argc, char** argv)
 	Eigen::VectorXi P;
 	Eigen::MatrixXi CF, BE, CE;
 
-	if (!load_cage(cageFile, C, P, CF, scaling_factor, !QGC, (!green && !QGC) ? &V : nullptr, find_offset))
+	if (!load_cage(cageFile, C, P, CF, scaling_factor, !QGC, (!green && !QGC && !MLC) ? &V : nullptr, find_offset))
 	{
 		std::cerr << "Failed to load cage!\n";
 		return 1;
@@ -176,7 +179,7 @@ int main(int argc, char** argv)
 		model_vertices_offset = C.rows();
 	}
 
-	if (!green && !QGC)
+	if (!green && !QGC && !MLC)
 	{
 		std::cout << "Using " << model_vertices_offset << " as offset for model vertices in embedding\n";
 	}
@@ -202,7 +205,7 @@ int main(int argc, char** argv)
 	std::vector<Eigen::Vector4d> psi_quad;
 	Eigen::VectorXi b;
 	Eigen::MatrixXd bc;
-	if (!green && !QGC)
+	if (!green && !QGC && !MLC)
 	{
 		std::cout << "Computing Boundary conditions\n";
 		if (!igl::boundary_conditions(V, T, C, P, BE, CE, CF, b, bc))
@@ -329,6 +332,14 @@ int main(int argc, char** argv)
 		variant_string = "QGC";
 		calculateGreenCoordinatesTriQuad(C, CF, V_model, W, psi_tri, psi_quad);
 	}
+	else if (MLC)
+	{
+		variant_string = "MLC";
+		Eigen::MatrixXd transMatrix;
+		Eigen::MatrixXd integral_outward_allfaces;
+		calculateMaximumLikelihoodCoordinates(C.transpose(), CF.transpose(), V_model.transpose(), W);
+		// computeIntegralUnitNormals(C, CF, transMatrix, integral_outward_allfaces);
+	}
 	else
 	{
 		igl::BBWData bbw_data;
@@ -364,7 +375,7 @@ int main(int argc, char** argv)
 	}
 	std::cout << "Done computing weights\n";
 
-	if (!lbc && !green && !QGC)
+	if (!lbc && !green && !QGC && !MLC)
 	{
 		igl::normalize_row_sums(W, W);
 	}
