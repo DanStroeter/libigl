@@ -51,7 +51,18 @@ void calculateMaximumLikelihoodCoordinates(const Eigen::MatrixXd &cage_v, const 
     int nv = cage_v.cols();
     int nf = cage_f.cols();
 
-    for (auto ii = 0; ii < model_v.cols(); ++ii)
+    mlc.resize(nv, model_v.cols());
+
+    std::vector<std::vector<int>> allAdjFaces;
+    std::vector<int> adjFaces;
+    // get adjacent faces of each vertex
+    for (int i = 0; i < nv; ++i)
+    {
+        adjFaces = findAdjacentFaces(cage_f, i);
+        allAdjFaces.push_back(adjFaces);
+    }
+
+    for (int ii = 0; ii < model_v.cols(); ++ii)
     {
         // Eigen::VectorXd mlc = Eigen::VectorXd::Zero(nv);
         std::vector<Eigen::MatrixXd> transMatrixGroup;
@@ -68,24 +79,17 @@ void calculateMaximumLikelihoodCoordinates(const Eigen::MatrixXd &cage_v, const 
         }
         transMatrixGroup.push_back(transMatrix);
         v *= transMatrix;
+        // std::cout << v.transpose() << std::endl;
 
         // 2. smooth
-        std::vector<std::vector<int>> allAdjFaces;
-        std::vector<int> adjFaces;
         Eigen::MatrixXd tempVar;
         double integral_vector_length;
-        // get adjacent faces of each vertex
-        for (int i = 0; i < nv; ++i)
-        {
-            adjFaces = findAdjacentFaces(cage_f, i);
-            allAdjFaces.push_back(adjFaces);
-        }
 
         tempVar = Eigen::MatrixXd::Zero(3, nf);
         transMatrix = Eigen::MatrixXd::Zero(nv, nv);
 
         Eigen::MatrixXd integral_outward_allfaces;
-        computeIntegralUnitNormals(cage_v, cage_f, tempVar, integral_outward_allfaces);
+        computeIntegralUnitNormals(v, cage_f, tempVar, integral_outward_allfaces);
 
         v = Eigen::MatrixXd::Zero(3, nv);
 

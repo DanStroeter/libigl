@@ -463,12 +463,16 @@ int main(int argc, char** argv)
 		{
 			calcNewPositionsTriQuad(C, C_deformed, CF, W, psi_tri, psi_quad, U_model);
 		}
+		else if (MLC)
+		{
+			U_model = W.transpose() * C_deformed;
+		}
 		else
 		{
 			U = M * Transformation;
 		}
 
-		if (!green && !QGC)
+		if (!green && !QGC && !MLC)
 		{
 			for (int j = 0; j < V_model.rows(); ++j)
 			{
