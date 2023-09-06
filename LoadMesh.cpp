@@ -6,6 +6,7 @@
 #include <igl/readOBJ.h>
 #include <igl/readMSH.h>
 #include <igl/EPS.h>
+#include <igl/read_triangle_mesh.h>
 
 template<typename vec, typename T>
 void scale_verts(std::vector<vec>& verts, T fac)
@@ -38,12 +39,12 @@ void scale_verts(std::vector<vec>& verts, T fac)
 	}
 }
 
-bool load_obj_verts(std::string const& file_name, Eigen::MatrixXd& V, double scaling_factor,
+bool load_verts(std::string const& file_name, Eigen::MatrixXd& V, double scaling_factor,
 	std::vector<std::vector<int>> & polygons)
 {
 	std::vector<std::vector<double>> verts;
 
-	if (!igl::readOBJ(file_name, verts, polygons))
+	if (!igl::read_triangle_mesh(file_name, verts, polygons))
 	{
 		std::cerr << "Failed to load " << file_name << "!\n";
 		return false;
@@ -87,7 +88,7 @@ bool load_mesh(std::string const& file_name, Eigen::MatrixXd& V, Eigen::MatrixXi
 	{
 		std::vector<std::vector<int>> tris;
 
-		if (!load_obj_verts(file_name, V, scaling_factor, tris))
+		if (!load_verts(file_name, V, scaling_factor, tris))
 		{
 			return false;
 		}
@@ -115,15 +116,9 @@ bool load_cage(std::string const& file_name, Eigen::MatrixXd& V,
 	Eigen::VectorXi & P, Eigen::MatrixXi & CF, double scaling_factor, bool triangulate_quads,
 	Eigen::MatrixXd * V_embedding /*= nullptr*/, bool find_offset /*= false*/)
 {
-	if (file_name.substr(file_name.size() - 4, 4).compare(".obj"))
-	{
-		std::cerr << "Only cages in obj are supported\n";
-		return false;
-	}
-
 	std::vector<std::vector<int>> polys;
 
-	if (!load_obj_verts(file_name, V, scaling_factor, polys))
+	if (!load_verts(file_name, V, scaling_factor, polys))
 	{
 		return false;
 	}

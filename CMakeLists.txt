@@ -6,6 +6,8 @@ set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+option(WITH_SOMIGLIANA "Compile with Somigliana coordinates (Linux only)" OFF)
+
 # Boost
 find_package(Boost REQUIRED COMPONENTS program_options)
 
@@ -16,6 +18,10 @@ find_package(Eigen3 REQUIRED)
 set(IGL_INCLUDE_DIR "libigl/include")
 
 add_subdirectory(LBC LBCLib)
+if (WITH_SOMIGLIANA)
+	add_subdirectory(somigliana SomiglianaLib)
+endif()
+add_subdirectory(libigl libIGL)
 
 # Compilation using MSVC
 if (MSVC)
@@ -56,6 +62,15 @@ target_link_libraries(
 	Eigen3::Eigen
 	LBC
 )
+
+if (WITH_SOMIGLIANA)
+	target_link_libraries(
+		${PROJECT_NAME}
+		PRIVATE
+		green
+	)
+	target_compile_definitions(${PROJECT_NAME} PRIVATE WITH_SOMIGLIANA)
+endif()
 
 target_include_directories(
     ${PROJECT_NAME}

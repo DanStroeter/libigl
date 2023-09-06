@@ -22,6 +22,9 @@
 #include <igl/writeDMAT.h>
 #include <igl/readDMAT.h>
 #include <LBCSolver.h>
+#ifdef WITH_SOMIGLIANA
+#include <somigliana_3d.h>
+#endif
 
 int main(int argc, char** argv)
 {
@@ -30,12 +33,17 @@ int main(int argc, char** argv)
 	std::string inputFile, outMeshFile = "a.msh", cageFile, cageDeformedFile, embeddedMeshFile, parameterFile, variant_string = "bbw", modelInfluenceFile;
 	int numSamples = 1, numBBWSteps = 20, lbc_scheme = 2;
 	float scaling_factor = 1.;
+	#ifdef WITH_SOMIGLIANA
+	double somig_nu = 0, somig_bulging = 0, somig_blend_factor = 0;
+	int somig_bulging_type = SWEPT_VOLUME;
+	std::unique_ptr<green::somig_deformer_3> somig_deformer;
+	#endif
 
 	desc.add_options()
 		("model,m", boost::program_options::value<std::string>(&inputFile), "Specifies the input *.btet file of the deformation model")
 		("cage,c", boost::program_options::value<std::string>(&cageFile), "Specifies the cage to use (Halfface *.hf file for subspaces and obj for others)")
 		("cage-deformed,cd", boost::program_options::value<std::string>(&cageDeformedFile), "Specifies a derformed cage file (instead of a parametrization)")
-		("embedded,e", boost::program_options::value<std::string>(&embeddedMeshFile), "Specifies the embedded tet mesh file which embeds the cage (in the first place) and the deformation model (afterwards)")
+		("embedded,e", boost::program_options::value<std::string>(&embeddedMeshFile), "Specifies the embedded tet mesh file which embeds the cage and the deformation model")
 		("parameters,p", boost::program_options::value<std::string>(&parameterFile), "Specifies the *.param parameter file to control mesh deformation")
 		("samples,s", boost::program_options::value<int>(&numSamples), "Specifies the number of samples for the parameters")
 		("output,o", boost::program_options::value<std::string>(&outMeshFile), "write resulting mesh to file")
@@ -44,12 +52,21 @@ int main(int argc, char** argv)
 		("scale", boost::program_options::value<float>(&scaling_factor), "Scale model, embedding and cage by factor")
 		("iter", boost::program_options::value<int>(&numBBWSteps), "The number of iterations for calculating BBW or LBC")
 		("lbc-scheme", boost::program_options::value<int>(&lbc_scheme), "The weighting scheme for lbc")
+#ifdef WITH_SOMIGLIANA
+		("somig-nu", boost::program_options::value<double>(&somig_nu), "The material parameter nu for somigliana deformer")
+		("somig-bulging", boost::program_options::value<double>(&somig_bulging), "The bulging parameter gamma for somigliana deformer")
+		("somig-bulging-type", boost::program_options::value<int>(&somig_bulging_type), "The bulging type for somigliana deformer 0: solid angle, 1: swept volume (default 1)")
+		("somig-blend", boost::program_options::value<double>(&somig_blend_factor), "The blending factor for somigliana deformer interpolating between local and global boundary conditions")
+#endif
 		("influence", "Evaluate the influence of the control vertices involved in the deformation and write the plot (Mesh for OBJ) to file")
 		("interpolate-weights", "Interpolate weights of model vertices from the embedding (embedding does not contain vertices of model)")
 		("harmonic", "Use harmonic coordinates by Joshi et al.")
 		("LBC", "Use local barycentric coordinates by Zhang et al.")
 		("green", "Use green coordinates by Lipman et al.")
 		("QGC", "Use tri-quad green coordinates")
+#ifdef WITH_SOMIGLIANA
+		("somigliana", "Use somigliana coordinates")
+#endif
 		("subspace", "Use Linear subspace design by Wang et al.");
 	boost::program_options::positional_options_description p;
 	boost::program_options::variables_map vm;
@@ -60,6 +77,12 @@ int main(int argc, char** argv)
 	const bool lbc = !harmonic && static_cast<bool>(vm.count("LBC"));
 	const bool green = !lbc && !harmonic && static_cast<bool>(vm.count("green"));
 	const bool QGC = !lbc && !harmonic && !green && static_cast<bool>(vm.count("QGC"));
+	const bool somigliana = 
+#ifdef WITH_SOMIGLIANA
+	!lbc && !harmonic && !green && !QGC && static_cast<bool>(vm.count("somigliana"));
+#else
+	false;
+#endif
 	const bool find_offset = static_cast<bool>(vm.count("find-offset"));
 	const bool scale = static_cast<bool>(vm.count("scale"));
 	const bool influence = static_cast<bool>(vm.count("influence"));
@@ -90,22 +113,43 @@ int main(int argc, char** argv)
 		std::cerr << "No deformation model specified!\n";
 		return 1;
 	}
-
+#ifdef WITH_SOMIGLIANA
+	if (somigliana)
+	{
+		somig_deformer = std::make_unique<green::somig_deformer_3>(somig_nu);
+	}
+#endif
 	Eigen::MatrixXd V, V_model;
 	Eigen::MatrixXi T, T_model;
-	std::cout << "Loading deformation tet mesh\n";
-	if (!load_mesh(inputFile, V_model, T_model, scaling_factor))
+	std::cout << "Loading deformation mesh\n";
+#ifdef WITH_SOMIGLIANA
+	if (!somigliana)
 	{
-		return 1;
+#endif
+		if (!load_mesh(inputFile, V_model, T_model, scaling_factor))
+		{
+			std::cerr << "Failed to load mesh file\n";
+			return 1;
+		}
+#ifdef WITH_SOMIGLIANA
 	}
+	else
+	{
+		if (!somig_deformer->load_mesh(inputFile))
+		{
+			std::cerr << "Failed to load mesh file\n";
+			return 1;
+		}
+	}
+#endif
 
-	if (!green && !QGC && !vm.count("embedded"))
+	if (!somigliana && !green && !QGC && !vm.count("embedded"))
 	{
 		std::cerr << "You must specify an embedding!\n";
 		return 1;
 	}
 
-	if (!green && !QGC)
+	if (!somigliana && !green && !QGC)
 	{
 		std::cout << "Loading the embedding\n";
 		if (!load_mesh(embeddedMeshFile, V, T, scaling_factor))
@@ -123,7 +167,7 @@ int main(int argc, char** argv)
 	int model_vertices_offset = 0, cage_vertices_offset = 0;
 
 	// Finding model verts in embedding
-	if (!interpolate_weights && find_offset && !green && !QGC)
+	if (!interpolate_weights && find_offset && !green && !QGC && !somigliana)
 	{
 		auto verices_equal = [](const Eigen::Vector3d& a, const Eigen::Vector3d& b)
 		{
@@ -152,7 +196,7 @@ int main(int argc, char** argv)
 			return 1;
 		}
 	}
-	else if (!green && !QGC)
+	else if (!green && !QGC && !somigliana)
 	{
 		auto const additional_offset = no_offset ? 0 : V.rows() - (V_model.rows() + model_vertices_offset);
 		model_vertices_offset += additional_offset;
@@ -165,11 +209,23 @@ int main(int argc, char** argv)
 	Eigen::VectorXi P;
 	Eigen::MatrixXi CF, BE, CE;
 
-	if (!load_cage(cageFile, C, P, CF, scaling_factor, !QGC, (!green && !QGC) ? &V : nullptr, find_offset))
+	if (!load_cage(cageFile, C, P, CF, scaling_factor, !QGC, (!green && !QGC && !somigliana) ? &V : nullptr, find_offset))
 	{
 		std::cerr << "Failed to load cage!\n";
 		return 1;
 	}
+
+#ifdef WITH_SOMIGLIANA
+	if (somigliana)
+	{
+		if (somig_deformer->load_cage(cageFile))
+		{
+			std::cerr << "Failed to load cage!\n";
+			return 1;
+		}
+		somig_deformer->init();
+	}
+#endif
 
 	if (!find_offset && !interpolate_weights)
 	{
@@ -202,7 +258,7 @@ int main(int argc, char** argv)
 	std::vector<Eigen::Vector4d> psi_quad;
 	Eigen::VectorXi b;
 	Eigen::MatrixXd bc;
-	if (!green && !QGC)
+	if (!green && !QGC && !somigliana)
 	{
 		std::cout << "Computing Boundary conditions\n";
 		if (!igl::boundary_conditions(V, T, C, P, BE, CE, CF, b, bc))
@@ -329,6 +385,13 @@ int main(int argc, char** argv)
 		variant_string = "QGC";
 		calculateGreenCoordinatesTriQuad(C, CF, V_model, W, psi_tri, psi_quad);
 	}
+#ifdef WITH_SOMIGLIANA
+	else if (somigliana)
+	{
+		variant_string = "somigliana";
+		somig_deformer->precompute_somig_coords();
+	}
+#endif
 	else
 	{
 		igl::BBWData bbw_data;
@@ -452,12 +515,18 @@ int main(int argc, char** argv)
 		{
 			calcNewPositionsTriQuad(C, C_deformed, CF, W, psi_tri, psi_quad, U_model);
 		}
+#ifdef WITH_SOMIGLIANA
+		else if (somigliana)
+		{
+			somig_deformer->deform(C_deformed, SOMIGLIANA, static_cast<BulgingType>(somig_bulging_type), somig_bulging, somig_blend_factor);
+		}
+#endif
 		else
 		{
 			U = M * Transformation;
 		}
 
-		if (!green && !QGC)
+		if (!green && !QGC && !somigliana)
 		{
 			for (int j = 0; j < V_model.rows(); ++j)
 			{
@@ -486,8 +555,18 @@ int main(int argc, char** argv)
 		}
 		else
 		{
-			std::cout << "Writing " << prefix + middle + variant_string + std::string(".obj") << "\n";
-			igl::writeOBJ(prefix + middle + variant_string + std::string(".obj"), U_model, T_model);
+#ifdef WITH_SOMIGLIANA
+			if (somigliana)
+			{
+				const std::string fname = prefix + middle + variant_string + std::string(".obj");
+				somig_deformer->save_mesh(fname.c_str());
+			}
+			else
+#endif
+			{
+				std::cout << "Writing " << prefix + middle + variant_string + std::string(".obj") << "\n";
+				igl::writeOBJ(prefix + middle + variant_string + std::string(".obj"), U_model, T_model);
+			}
 		}
 	}
 
