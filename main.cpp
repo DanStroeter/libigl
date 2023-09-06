@@ -5,6 +5,7 @@
 #include <fstream>
 
 #include "GreenCoordinates.h"
+#include "MaximumLikelihoodCoordinates.h"
 #include "InfluenceMap.h"
 #include "Parametrization.h"
 #include "LoadMesh.h"
@@ -64,6 +65,7 @@ int main(int argc, char** argv)
 		("LBC", "Use local barycentric coordinates by Zhang et al.")
 		("green", "Use green coordinates by Lipman et al.")
 		("QGC", "Use tri-quad green coordinates")
+		("MLC", "Use maximum likelihood coordinates by Chang et al.")
 #ifdef WITH_SOMIGLIANA
 		("somigliana", "Use somigliana coordinates")
 #endif
@@ -77,6 +79,7 @@ int main(int argc, char** argv)
 	const bool lbc = !harmonic && static_cast<bool>(vm.count("LBC"));
 	const bool green = !lbc && !harmonic && static_cast<bool>(vm.count("green"));
 	const bool QGC = !lbc && !harmonic && !green && static_cast<bool>(vm.count("QGC"));
+	const bool MLC = !QGC && !lbc && !harmonic && !green && static_cast<bool>(vm.count("MLC"));
 	const bool somigliana = 
 #ifdef WITH_SOMIGLIANA
 	!lbc && !harmonic && !green && !QGC && static_cast<bool>(vm.count("somigliana"));
@@ -143,13 +146,13 @@ int main(int argc, char** argv)
 	}
 #endif
 
-	if (!somigliana && !green && !QGC && !vm.count("embedded"))
+	if (!somigliana && !green && !QGC && !MLC && !vm.count("embedded"))
 	{
 		std::cerr << "You must specify an embedding!\n";
 		return 1;
 	}
 
-	if (!somigliana && !green && !QGC)
+	if (!somigliana && !green && !QGC && !MLC)
 	{
 		std::cout << "Loading the embedding\n";
 		if (!load_mesh(embeddedMeshFile, V, T, scaling_factor))
@@ -167,7 +170,7 @@ int main(int argc, char** argv)
 	int model_vertices_offset = 0, cage_vertices_offset = 0;
 
 	// Finding model verts in embedding
-	if (!interpolate_weights && find_offset && !green && !QGC && !somigliana)
+	if (!interpolate_weights && find_offset && !green && !QGC && !MLC && !somigliana)
 	{
 		auto verices_equal = [](const Eigen::Vector3d& a, const Eigen::Vector3d& b)
 		{
@@ -196,7 +199,7 @@ int main(int argc, char** argv)
 			return 1;
 		}
 	}
-	else if (!green && !QGC && !somigliana)
+	else if (!green && !QGC && !MLC && !somigliana)
 	{
 		auto const additional_offset = no_offset ? 0 : V.rows() - (V_model.rows() + model_vertices_offset);
 		model_vertices_offset += additional_offset;
@@ -209,7 +212,7 @@ int main(int argc, char** argv)
 	Eigen::VectorXi P;
 	Eigen::MatrixXi CF, BE, CE;
 
-	if (!load_cage(cageFile, C, P, CF, scaling_factor, !QGC, (!green && !QGC && !somigliana) ? &V : nullptr, find_offset))
+	if (!load_cage(cageFile, C, P, CF, scaling_factor, !QGC, (!green && !QGC && !MLC && !somigliana) ? &V : nullptr, find_offset))
 	{
 		std::cerr << "Failed to load cage!\n";
 		return 1;
@@ -232,7 +235,7 @@ int main(int argc, char** argv)
 		model_vertices_offset = C.rows();
 	}
 
-	if (!green && !QGC)
+	if (!green && !QGC && !MLC)
 	{
 		std::cout << "Using " << model_vertices_offset << " as offset for model vertices in embedding\n";
 	}
@@ -258,7 +261,7 @@ int main(int argc, char** argv)
 	std::vector<Eigen::Vector4d> psi_quad;
 	Eigen::VectorXi b;
 	Eigen::MatrixXd bc;
-	if (!green && !QGC && !somigliana)
+	if (!green && !QGC && !MLC && !somigliana)
 	{
 		std::cout << "Computing Boundary conditions\n";
 		if (!igl::boundary_conditions(V, T, C, P, BE, CE, CF, b, bc))
@@ -385,6 +388,14 @@ int main(int argc, char** argv)
 		variant_string = "QGC";
 		calculateGreenCoordinatesTriQuad(C, CF, V_model, W, psi_tri, psi_quad);
 	}
+	else if (MLC)
+	{
+		variant_string = "MLC";
+		Eigen::MatrixXd transMatrix;
+		Eigen::MatrixXd integral_outward_allfaces;
+		calculateMaximumLikelihoodCoordinates(C.transpose(), CF.transpose(), V_model.transpose(), W);
+		// computeIntegralUnitNormals(C, CF, transMatrix, integral_outward_allfaces);
+	}
 #ifdef WITH_SOMIGLIANA
 	else if (somigliana)
 	{
@@ -427,7 +438,7 @@ int main(int argc, char** argv)
 	}
 	std::cout << "Done computing weights\n";
 
-	if (!lbc && !green && !QGC)
+	if (!lbc && !green && !QGC && !MLC)
 	{
 		igl::normalize_row_sums(W, W);
 	}
@@ -515,6 +526,10 @@ int main(int argc, char** argv)
 		{
 			calcNewPositionsTriQuad(C, C_deformed, CF, W, psi_tri, psi_quad, U_model);
 		}
+		else if (MLC)
+		{
+			U_model = W.transpose() * C_deformed;
+		}
 #ifdef WITH_SOMIGLIANA
 		else if (somigliana)
 		{
@@ -526,7 +541,7 @@ int main(int argc, char** argv)
 			U = M * Transformation;
 		}
 
-		if (!green && !QGC && !somigliana)
+		if (!green && !QGC && !MLC && !somigliana)
 		{
 			for (int j = 0; j < V_model.rows(); ++j)
 			{
