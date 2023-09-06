@@ -41,6 +41,7 @@ int main(int argc, char** argv)
 	#endif
 
 	desc.add_options()
+		("help,h", "Help screen")
 		("model,m", boost::program_options::value<std::string>(&inputFile), "Specifies the input *.btet file of the deformation model")
 		("cage,c", boost::program_options::value<std::string>(&cageFile), "Specifies the cage to use (Halfface *.hf file for subspaces and obj for others)")
 		("cage-deformed,cd", boost::program_options::value<std::string>(&cageDeformedFile), "Specifies a derformed cage file (instead of a parametrization)")
@@ -67,13 +68,19 @@ int main(int argc, char** argv)
 		("QGC", "Use tri-quad green coordinates")
 		("MLC", "Use maximum likelihood coordinates by Chang et al.")
 #ifdef WITH_SOMIGLIANA
-		("somigliana", "Use somigliana coordinates")
+		("somigliana", "Use somigliana coordinates by Chen et al.")
 #endif
 		("subspace", "Use Linear subspace design by Wang et al.");
 	boost::program_options::positional_options_description p;
 	boost::program_options::variables_map vm;
 	boost::program_options::store(boost::program_options::command_line_parser(argc, argv).options(desc).positional(p).run(), vm);
 	boost::program_options::notify(vm);
+
+	if (vm.count("help"))
+	{
+      std::cout << desc << '\n';
+	  return 0;
+	}
 
 	const bool harmonic = static_cast<bool>(vm.count("harmonic"));
 	const bool lbc = !harmonic && static_cast<bool>(vm.count("LBC"));
