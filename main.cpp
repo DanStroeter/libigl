@@ -22,6 +22,7 @@
 #include <igl/writeOBJ.h>
 #include <igl/writeDMAT.h>
 #include <igl/readDMAT.h>
+#include <igl/Timer.h>
 #include <LBCSolver.h>
 #ifdef WITH_SOMIGLIANA
 #include <somigliana_3d.h>
@@ -34,6 +35,7 @@ int main(int argc, char** argv)
 	std::string inputFile, outMeshFile = "a.msh", cageFile, cageDeformedFile, embeddedMeshFile, parameterFile, variant_string = "bbw", modelInfluenceFile;
 	int numSamples = 1, numBBWSteps = 20, lbc_scheme = 2;
 	float scaling_factor = 1.;
+	std::unique_ptr<igl::Timer> timer;
 	#ifdef WITH_SOMIGLIANA
 	double somig_nu = 0, somig_bulging = 0, somig_blend_factor = 0;
 	int somig_bulging_type = SWEPT_VOLUME;
@@ -52,6 +54,7 @@ int main(int argc, char** argv)
 		("no-offset", "Do not calculate an offset for model within the embedding (except the cage)")
 		("find-offset", "Search points of embedding for offset (requires equality of points)")
 		("scale", boost::program_options::value<float>(&scaling_factor), "Scale model, embedding and cage by factor")
+		("time,t", "Measure runtime of coordinate calculation")
 		("iter", boost::program_options::value<int>(&numBBWSteps), "The number of iterations for calculating BBW or LBC")
 		("lbc-scheme", boost::program_options::value<int>(&lbc_scheme), "The weighting scheme for lbc")
 #ifdef WITH_SOMIGLIANA
@@ -99,6 +102,7 @@ int main(int argc, char** argv)
 	const bool load_deformed_cage = static_cast<bool>(vm.count("cage-deformed"));
 	const bool interpolate_weights = static_cast<bool>(vm.count("interpolate-weights"));
 	const bool no_offset = static_cast<bool>(vm.count("no-offset")) || interpolate_weights;
+	const bool measure_time = static_cast<bool>(vm.count("time"));
 
 	// Display help page if requested
 	if (vm.count("help"))
@@ -123,6 +127,22 @@ int main(int argc, char** argv)
 		std::cerr << "No deformation model specified!\n";
 		return 1;
 	}
+	if (measure_time)
+	{
+		timer = std::make_unique<igl::Timer>();
+	}
+	auto start_timer = [&timer, measure_time]() {
+		if (measure_time)
+		{
+			timer->start();
+		}
+	};
+	auto stop_timer = [&timer, measure_time]() {
+		if (measure_time)
+		{
+			timer->stop();
+		}
+	};
 #ifdef WITH_SOMIGLIANA
 	if (somigliana)
 	{
@@ -288,11 +308,13 @@ int main(int argc, char** argv)
 	if (harmonic)
 	{
 		variant_string = "harmonic";
+		start_timer();
 		if (!igl::harmonic(V, T, b, bc, 1, W))
 		{
 			std::cerr << "Failed to compute harmonic weights!\n";
 			return 1;
 		}
+		stop_timer();
 	}
 	else if (lbc)
 	{
@@ -375,7 +397,9 @@ int main(int argc, char** argv)
 			LBC::LBCSolver solver(param, ds);
 
 			std::cout << "LBC Solver started\n";
+			start_timer();
 			solver.solve();
+			stop_timer();
 			std::cout << "Finished computation\n";
 
 			W = ds.get_full_coordinate_values(solver.get_coordinates());
@@ -388,26 +412,32 @@ int main(int argc, char** argv)
 	else if (green)
 	{
 		variant_string = "green";
+		start_timer();
 		calculateGreenCoordinatesFromQMVC(C, CF, normals, V_model, W, psi);
+		stop_timer();
 	}
 	else if (QGC)
 	{
 		variant_string = "QGC";
+		start_timer();
 		calculateGreenCoordinatesTriQuad(C, CF, V_model, W, psi_tri, psi_quad);
+		stop_timer();
 	}
 	else if (MLC)
 	{
 		variant_string = "MLC";
 		Eigen::MatrixXd transMatrix;
 		Eigen::MatrixXd integral_outward_allfaces;
+		start_timer();
 		calculateMaximumLikelihoodCoordinates(C.transpose(), CF.transpose(), V_model.transpose(), W);
+		stop_timer();
 		// computeIntegralUnitNormals(C, CF, transMatrix, integral_outward_allfaces);
 	}
 #ifdef WITH_SOMIGLIANA
 	else if (somigliana)
 	{
 		variant_string = "somigliana";
-		somig_deformer->precompute_somig_coords();
+		somig_deformer->precompute_somig_coords(); // somigliana coordinates ship their own timer
 	}
 #endif
 	else
@@ -422,11 +452,13 @@ int main(int argc, char** argv)
 		std::ifstream in(weightsFile);
 		if (!in.good())
 		{
+			start_timer();
 			if (!igl::bbw(V, T, b, bc, bbw_data, W))
 			{
 				std::cerr << "Failed to compute bounded biharmonic weights!\n";
 				return 1;
 			}
+			stop_timer();
 			// Write computed weights to file
 			if (!igl::writeDMAT(weightsFile, W))
 			{
@@ -442,6 +474,10 @@ int main(int argc, char** argv)
 				return 1;
 			}
 		}
+	}
+	if (measure_time)
+	{
+		std::cout << "Calculating weights took " << timer->getElapsedTime() << "seconds\n";
 	}
 	std::cout << "Done computing weights\n";
 
