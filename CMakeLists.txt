@@ -34,6 +34,8 @@ set(${PROJECT_NAME}_SOURCES
 	GreenCoordinates.cpp
 	MaximumLikelihoodCoordinates.h
 	MaximumLikelihoodCoordinates.cpp
+	MaximumEntropyCoordinates.h
+	MaximumEntropyCoordinates.cpp
 	LoadMesh.h
 	LoadMesh.cpp
 	InfluenceMap.h

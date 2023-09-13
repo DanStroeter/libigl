@@ -6,6 +6,7 @@
 
 #include "GreenCoordinates.h"
 #include "MaximumLikelihoodCoordinates.h"
+#include "MaximumEntropyCoordinates.h"
 #include "InfluenceMap.h"
 #include "Parametrization.h"
 #include "LoadMesh.h"
@@ -35,6 +36,7 @@ int main(int argc, char** argv)
 	std::string inputFile, outMeshFile = "a.msh", cageFile, cageDeformedFile, embeddedMeshFile, parameterFile, variant_string = "bbw", modelInfluenceFile;
 	int numSamples = 1, numBBWSteps = 20, lbc_scheme = 2;
 	float scaling_factor = 1.;
+	int mec_flag = 1;
 	std::unique_ptr<igl::Timer> timer;
 	#ifdef WITH_SOMIGLIANA
 	double somig_nu = 0, somig_bulging = 0, somig_blend_factor = 0;
@@ -70,6 +72,8 @@ int main(int argc, char** argv)
 		("green", "Use green coordinates by Lipman et al.")
 		("QGC", "Use tri-quad green coordinates")
 		("MLC", "Use maximum likelihood coordinates by Chang et al.")
+		// ("MEC", boost::program_options::value<int>(&mec_flag), "Use maximum entropy coordinates by Hormann et al.")
+		("MEC", "Use maximum entropy coordinates by Hormann et al.")   // here we only use MEC-1 prior function
 #ifdef WITH_SOMIGLIANA
 		("somigliana", "Use somigliana coordinates by Chen et al.")
 #endif
@@ -90,6 +94,7 @@ int main(int argc, char** argv)
 	const bool green = !lbc && !harmonic && static_cast<bool>(vm.count("green"));
 	const bool QGC = !lbc && !harmonic && !green && static_cast<bool>(vm.count("QGC"));
 	const bool MLC = !QGC && !lbc && !harmonic && !green && static_cast<bool>(vm.count("MLC"));
+	const bool MEC = !MLC && !QGC && !lbc && !harmonic && !green && static_cast<bool>(vm.count("MEC"));
 	const bool somigliana = 
 #ifdef WITH_SOMIGLIANA
 	!lbc && !harmonic && !green && !QGC && static_cast<bool>(vm.count("somigliana"));
@@ -173,13 +178,13 @@ int main(int argc, char** argv)
 	}
 #endif
 
-	if (!somigliana && !green && !QGC && !MLC && !vm.count("embedded"))
+	if (!somigliana && !green && !QGC && !MLC && !MEC && !vm.count("embedded"))
 	{
 		std::cerr << "You must specify an embedding!\n";
 		return 1;
 	}
 
-	if (!somigliana && !green && !QGC && !MLC)
+	if (!somigliana && !green && !QGC && !MLC && !MEC)
 	{
 		std::cout << "Loading the embedding\n";
 		if (!load_mesh(embeddedMeshFile, V, T, scaling_factor))
@@ -197,7 +202,7 @@ int main(int argc, char** argv)
 	int model_vertices_offset = 0, cage_vertices_offset = 0;
 
 	// Finding model verts in embedding
-	if (!interpolate_weights && find_offset && !green && !QGC && !MLC && !somigliana)
+	if (!interpolate_weights && find_offset && !green && !QGC && !MLC && !MEC && !somigliana)
 	{
 		auto verices_equal = [](const Eigen::Vector3d& a, const Eigen::Vector3d& b)
 		{
@@ -226,7 +231,7 @@ int main(int argc, char** argv)
 			return 1;
 		}
 	}
-	else if (!green && !QGC && !MLC && !somigliana)
+	else if (!green && !QGC && !MLC && !MEC && !somigliana)
 	{
 		auto const additional_offset = no_offset ? 0 : V.rows() - (V_model.rows() + model_vertices_offset);
 		model_vertices_offset += additional_offset;
@@ -239,7 +244,7 @@ int main(int argc, char** argv)
 	Eigen::VectorXi P;
 	Eigen::MatrixXi CF, BE, CE;
 
-	if (!load_cage(cageFile, C, P, CF, scaling_factor, !QGC, (!green && !QGC && !MLC && !somigliana) ? &V : nullptr, find_offset))
+	if (!load_cage(cageFile, C, P, CF, scaling_factor, !QGC, (!green && !QGC && !MLC && !MEC && !somigliana) ? &V : nullptr, find_offset))
 	{
 		std::cerr << "Failed to load cage!\n";
 		return 1;
@@ -262,7 +267,7 @@ int main(int argc, char** argv)
 		model_vertices_offset = C.rows();
 	}
 
-	if (!green && !QGC && !MLC)
+	if (!green && !QGC && !MLC && !MEC)
 	{
 		std::cout << "Using " << model_vertices_offset << " as offset for model vertices in embedding\n";
 	}
@@ -288,7 +293,7 @@ int main(int argc, char** argv)
 	std::vector<Eigen::Vector4d> psi_quad;
 	Eigen::VectorXi b;
 	Eigen::MatrixXd bc;
-	if (!green && !QGC && !MLC && !somigliana)
+	if (!green && !QGC && !MLC && !MEC && !somigliana)
 	{
 		std::cout << "Computing Boundary conditions\n";
 		if (!igl::boundary_conditions(V, T, C, P, BE, CE, CF, b, bc))
@@ -426,12 +431,16 @@ int main(int argc, char** argv)
 	else if (MLC)
 	{
 		variant_string = "MLC";
-		Eigen::MatrixXd transMatrix;
-		Eigen::MatrixXd integral_outward_allfaces;
 		start_timer();
 		calculateMaximumLikelihoodCoordinates(C.transpose(), CF.transpose(), V_model.transpose(), W);
 		stop_timer();
-		// computeIntegralUnitNormals(C, CF, transMatrix, integral_outward_allfaces);
+	}
+	else if (MEC)
+	{
+		variant_string = "MEC";
+		start_timer();
+		calculateMaximumEntropyCoordinates(C.transpose(), CF.transpose(), V_model.transpose(), W, mec_flag);
+		stop_timer();
 	}
 #ifdef WITH_SOMIGLIANA
 	else if (somigliana)
@@ -481,7 +490,7 @@ int main(int argc, char** argv)
 	}
 	std::cout << "Done computing weights\n";
 
-	if (!lbc && !green && !QGC && !MLC)
+	if (!lbc && !green && !QGC && !MLC && !MEC)
 	{
 		igl::normalize_row_sums(W, W);
 	}
@@ -569,7 +578,7 @@ int main(int argc, char** argv)
 		{
 			calcNewPositionsTriQuad(C, C_deformed, CF, W, psi_tri, psi_quad, U_model);
 		}
-		else if (MLC)
+		else if (MLC || MEC)
 		{
 			U_model = W.transpose() * C_deformed;
 		}
@@ -584,7 +593,7 @@ int main(int argc, char** argv)
 			U = M * Transformation;
 		}
 
-		if (!green && !QGC && !MLC && !somigliana)
+		if (!green && !QGC && !MLC && !MEC && !somigliana)
 		{
 			for (int j = 0; j < V_model.rows(); ++j)
 			{
