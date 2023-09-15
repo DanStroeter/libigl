@@ -22,6 +22,7 @@ if (WITH_SOMIGLIANA)
 	add_subdirectory(somigliana SomiglianaLib)
 endif()
 add_subdirectory(libigl libIGL)
+add_subdirectory(OpenFBX OpenFBXLib)
 
 # Compilation using MSVC
 if (MSVC)
@@ -38,6 +39,8 @@ set(${PROJECT_NAME}_SOURCES
 	MaximumEntropyCoordinates.cpp
 	LoadMesh.h
 	LoadMesh.cpp
+	LoadFBX.h
+	LoadFBX.cpp
 	InfluenceMap.h
 	InfluenceMap.cpp
 	Parametrization.h
@@ -65,6 +68,7 @@ target_link_libraries(
 	Boost::disable_autolinking
 	Eigen3::Eigen
 	LBC
+	OpenFBX
 )
 
 if (WITH_SOMIGLIANA)

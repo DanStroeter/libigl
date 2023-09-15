@@ -3,7 +3,6 @@
 #include <vector>
 #include <iostream>
 
-#include <igl/readOBJ.h>
 #include <igl/readMSH.h>
 #include <igl/EPS.h>
 #include <igl/read_triangle_mesh.h>

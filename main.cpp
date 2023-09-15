@@ -11,6 +11,7 @@
 #include "Parametrization.h"
 #include "LoadMesh.h"
 #include "WeightInterpolation.h"
+#include "LoadFBX.h"
 
 #include <boost/program_options.hpp>
 //#define VERBOSE
@@ -33,7 +34,7 @@ int main(int argc, char** argv)
 {
 	boost::program_options::options_description desc("This is a tool used for morphing with different coordinate variants.\n");
 
-	std::string inputFile, outMeshFile = "a.msh", cageFile, cageDeformedFile, embeddedMeshFile, parameterFile, variant_string = "bbw", modelInfluenceFile;
+	std::string inputFile, outMeshFile = "a.msh", cageFile, cageDeformedFile, embeddedMeshFile, parameterFile, variant_string = "bbw", modelInfluenceFile, fbxFile;
 	int numSamples = 1, numBBWSteps = 20, lbc_scheme = 2;
 	float scaling_factor = 1.;
 	int mec_flag = 1;
@@ -49,6 +50,7 @@ int main(int argc, char** argv)
 		("model,m", boost::program_options::value<std::string>(&inputFile), "Specifies the input *.btet file of the deformation model")
 		("cage,c", boost::program_options::value<std::string>(&cageFile), "Specifies the cage to use (Halfface *.hf file for subspaces and obj for others)")
 		("cage-deformed,cd", boost::program_options::value<std::string>(&cageDeformedFile), "Specifies a derformed cage file (instead of a parametrization)")
+		("fbx", boost::program_options::value<std::string>(&fbxFile), "Specifies the .fbx file to be loaded")
 		("embedded,e", boost::program_options::value<std::string>(&embeddedMeshFile), "Specifies the embedded tet mesh file which embeds the cage and the deformation model")
 		("parameters,p", boost::program_options::value<std::string>(&parameterFile), "Specifies the *.param parameter file to control mesh deformation")
 		("samples,s", boost::program_options::value<int>(&numSamples), "Specifies the number of samples for the parameters")
@@ -97,10 +99,11 @@ int main(int argc, char** argv)
 	const bool MEC = !MLC && !QGC && !lbc && !harmonic && !green && static_cast<bool>(vm.count("MEC"));
 	const bool somigliana = 
 #ifdef WITH_SOMIGLIANA
-	!lbc && !harmonic && !green && !QGC && static_cast<bool>(vm.count("somigliana"));
+	!lbc && !harmonic && !green && !QGC && !MLC && !MEC && static_cast<bool>(vm.count("somigliana"));
 #else
 	false;
 #endif
+	const bool load_fbx = static_cast<bool>(vm.count("fbx"));
 	const bool find_offset = static_cast<bool>(vm.count("find-offset"));
 	const bool scale = static_cast<bool>(vm.count("scale"));
 	const bool influence = static_cast<bool>(vm.count("influence"));
@@ -121,13 +124,13 @@ int main(int argc, char** argv)
 	{
 		params = readParams(parameterFile);
 	}
-	else if (!load_deformed_cage)
+	else if (!load_deformed_cage && ! load_fbx)
 	{
-		std::cerr << "You need to specify either a deformed cage or a parametrization of the cage";
+		std::cerr << "You need to specify either a deformed cage, parametrization of the cage or an fbx file";
 		return 1;
 	}
 
-	if (!vm.count("model"))
+	if (!vm.count("model") && !load_fbx)
 	{
 		std::cerr << "No deformation model specified!\n";
 		return 1;
@@ -154,14 +157,22 @@ int main(int argc, char** argv)
 		somig_deformer = std::make_unique<green::somig_deformer_3>(somig_nu);
 	}
 #endif
-	Eigen::MatrixXd V, V_model;
-	Eigen::MatrixXi T, T_model;
+	Eigen::MatrixXd V, V_model, C;
+	Eigen::MatrixXi T, T_model, CF;
 	std::cout << "Loading deformation mesh\n";
+	if (load_fbx)
+	{
+		if (!load_fbx_file(fbxFile, V_model, T_model, C, CF))
+		{
+			std::cerr << "Failed to load fbx file\n";
+			return 1;
+		}
+	}
 #ifdef WITH_SOMIGLIANA
 	if (!somigliana)
 	{
 #endif
-		if (!load_mesh(inputFile, V_model, T_model, scaling_factor))
+		if (!load_fbx && !load_mesh(inputFile, V_model, T_model, scaling_factor))
 		{
 			std::cerr << "Failed to load mesh file\n";
 			return 1;
@@ -177,6 +188,7 @@ int main(int argc, char** argv)
 		}
 	}
 #endif
+
 
 	if (!somigliana && !green && !QGC && !MLC && !MEC && !vm.count("embedded"))
 	{
@@ -240,11 +252,12 @@ int main(int argc, char** argv)
 	}
 
 	std::cout << "Loading cage\n";
-	Eigen::MatrixXd C, C_deformed;
+	Eigen::MatrixXd C_deformed;
 	Eigen::VectorXi P;
-	Eigen::MatrixXi CF, BE, CE;
+	Eigen::MatrixXi BE, CE;
 
-	if (!load_cage(cageFile, C, P, CF, scaling_factor, !QGC, (!green && !QGC && !MLC && !MEC && !somigliana) ? &V : nullptr, find_offset))
+	// Load cage if it has not been loaded already
+	if (C.rows() == 0 && !load_cage(cageFile, C, P, CF, scaling_factor, !QGC, (!green && !QGC && !MLC && !MEC && !somigliana) ? &V : nullptr, find_offset))
 	{
 		std::cerr << "Failed to load cage!\n";
 		return 1;
