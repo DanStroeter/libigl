@@ -619,7 +619,7 @@ void somig_deformer_3::deform(matd_t             &V,
   
   if ( typeDf == MEANVALUE ) {
     V_.noalias() = cageV_*Phi_;
-    V.bottomRows(nv) = V_.transpose();
+    //V.bottomRows(nv) = V_.transpose();
     return;    
   }
 
@@ -630,7 +630,7 @@ void somig_deformer_3::deform(matd_t             &V,
     VectorXd sL = cageA_.cwiseQuotient(cageA0_);
     sL = sL.cwiseSqrt();
     V_.noalias() = cageV_*phi_ + (cageN_*sL.asDiagonal())*psi_;
-    V.bottomRows(nv) = V_.transpose();
+    //V.bottomRows(nv) = V_.transpose();
     return;
   }
   
