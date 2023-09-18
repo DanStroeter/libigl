@@ -72,7 +72,12 @@ bool load_fbx_file(const std::string& fbxFile, Eigen::MatrixXd & V_model, Eigen:
 
 	std::vector<ofbx::u8> content(file_size);
 
-	fread(content.data(), 1, file_size, fbx_file);
+	auto const data_size = fread(content.data(), 1, file_size, fbx_file);
+
+	if (!data_size)
+	{
+		return false;
+	}
 
 	ofbx::LoadFlags flags =
 		//		ofbx::LoadFlags::IGNORE_MODELS |
