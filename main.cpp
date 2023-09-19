@@ -4,6 +4,8 @@
 #include <vector>
 #include <fstream>
 
+#include "globals.h"
+
 #include "GreenCoordinates.h"
 #include "MaximumLikelihoodCoordinates.h"
 #include "MaximumEntropyCoordinates.h"
@@ -47,6 +49,7 @@ int main(int argc, char** argv)
 
 	desc.add_options()
 		("help,h", "Help screen")
+		("verbose,v", boost::program_options::value<unsigned int>(&verbosity), "Handle verbosity (0: quiet, 1: verbose, default: 1)")
 		("model,m", boost::program_options::value<std::string>(&inputFile), "Specifies the input *.btet file of the deformation model")
 		("cage,c", boost::program_options::value<std::string>(&cageFile), "Specifies the cage to use (Halfface *.hf file for subspaces and obj for others)")
 		("cage-deformed,cd", boost::program_options::value<std::string>(&cageDeformedFile), "Specifies a derformed cage file (instead of a parametrization)")
@@ -159,12 +162,16 @@ int main(int argc, char** argv)
 #ifdef WITH_SOMIGLIANA
 	if (somigliana || MVC)
 	{
-		somig_deformer = std::make_unique<green::somig_deformer_3>(somig_nu);
+		somig_deformer = std::make_unique<green::somig_deformer_3>(somig_nu, static_cast<bool>(!verbosity));
 	}
 #endif
 	Eigen::MatrixXd V, V_model, C;
 	Eigen::MatrixXi T, T_model, CF;
-	std::cout << "Loading deformation mesh\n";
+	if (verbosity)
+	{
+		std::cout << "Loading deformation mesh\n";
+	}
+
 	if (load_fbx)
 	{
 		if (!load_fbx_file(fbxFile, V_model, T_model, C, CF))
@@ -203,7 +210,10 @@ int main(int argc, char** argv)
 
 	if (!somigliana && !MVC && !green && !QGC && !MLC && !MEC)
 	{
-		std::cout << "Loading the embedding\n";
+		if (verbosity)
+		{
+			std::cout << "Loading the embedding\n";
+		}
 		if (!load_mesh(embeddedMeshFile, V, T, scaling_factor))
 		{
 			return 1;
@@ -238,7 +248,7 @@ int main(int argc, char** argv)
 				break;
 			}
 		}
-		if (found)
+		if (found && verbosity)
 		{
 			std::cout << "Found model verts in embedding with an offset of " << model_vertices_offset << "\n";
 		}
@@ -252,11 +262,16 @@ int main(int argc, char** argv)
 	{
 		auto const additional_offset = no_offset ? 0 : V.rows() - (V_model.rows() + model_vertices_offset);
 		model_vertices_offset += additional_offset;
-		std::cout << "Adding an offset of " << additional_offset << "\n";
-		std::cout << "Loading embedding\n";
+		if (verbosity)
+		{
+			std::cout << "Adding an offset of " << additional_offset << "\n";
+		}
 	}
 
-	std::cout << "Loading cage\n";
+	if (verbosity)
+	{
+		std::cout << "Loading cage\n";
+	}
 	Eigen::MatrixXd C_deformed;
 	Eigen::VectorXi P;
 	Eigen::MatrixXi BE, CE;
@@ -285,7 +300,7 @@ int main(int argc, char** argv)
 		model_vertices_offset = C.rows();
 	}
 
-	if (!green && !MVC && !QGC && !MLC && !MEC)
+	if (!green && !MVC && !QGC && !MLC && !MEC && verbosity)
 	{
 		std::cout << "Using " << model_vertices_offset << " as offset for model vertices in embedding\n";
 	}
@@ -313,13 +328,19 @@ int main(int argc, char** argv)
 	Eigen::MatrixXd bc;
 	if (!MVC && !green && !QGC && !MLC && !MEC && !somigliana)
 	{
-		std::cout << "Computing Boundary conditions\n";
+		if (verbosity)
+		{
+			std::cout << "Computing Boundary conditions\n";
+		}
 		if (!igl::boundary_conditions(V, T, C, P, BE, CE, CF, b, bc))
 		{
 			std::cerr << "Failed to extract boundary conditions for cage!\n";
 			return 1;
 		}
-		std::cout << "Done computing boundary conditions\n";
+		if (verbosity)
+		{
+			std::cout << "Done computing boundary conditions\n";
+		}
 	}
 	else if (green)
 	{
@@ -327,7 +348,11 @@ int main(int argc, char** argv)
 	}
 	// compute BBW weights matrix
 	Eigen::MatrixXd W, W_interpolated, psi;
-	std::cout << "Computing weights\n";
+	if (verbosity)
+	{
+		std::cout << "Computing weights\n";
+	}
+
 	if (harmonic)
 	{
 		variant_string = "harmonic";
@@ -348,7 +373,10 @@ int main(int argc, char** argv)
 		std::ifstream in(weightsFile);
 		if (in.good())
 		{
-			std::cout << "Reading weights from file " << weightsFile << "\n";
+			if (verbosity)
+			{
+				std::cout << "Reading weights from file " << weightsFile << "\n";
+			}
 			if (!igl::readDMAT(weightsFile, W))
 			{
 				std::cerr << "Failed to read weights from file!\n";
@@ -419,11 +447,17 @@ int main(int argc, char** argv)
 			param.penalty_weight = 10;
 			LBC::LBCSolver solver(param, ds);
 
-			std::cout << "LBC Solver started\n";
+			if (verbosity)
+			{
+				std::cout << "LBC Solver started\n";
+			}
 			start_timer();
 			solver.solve();
 			stop_timer();
-			std::cout << "Finished computation\n";
+			if (verbosity)
+			{
+				std::cout << "Finished computation\n";
+			}
 
 			W = ds.get_full_coordinate_values(solver.get_coordinates());
 			if (!igl::writeDMAT(weightsFile, W))
@@ -499,7 +533,10 @@ int main(int argc, char** argv)
 		}
 		else
 		{
-			std::cout << "Reading weights from file " << weightsFile << "\n";
+			if (verbosity)
+			{
+				std::cout << "Reading weights from file " << weightsFile << "\n";
+			}
 			if (!igl::readDMAT(weightsFile, W))
 			{
 				std::cerr << "Failed to read weights from file!\n";
@@ -511,7 +548,10 @@ int main(int argc, char** argv)
 	{
 		std::cout << "Calculating weights took " << timer->getElapsedTime() << "seconds\n";
 	}
-	std::cout << "Done computing weights\n";
+	if (verbosity)
+	{
+		std::cout << "Done computing weights\n";
+	}
 
 	if (!lbc && !green && !QGC && !MLC && !MEC)
 	{
@@ -519,7 +559,10 @@ int main(int argc, char** argv)
 	}
 	Eigen::MatrixXd M;
 	// precompute linear blend skinning matrix
-	std::cout << "Calculating M\n";
+	if (verbosity)
+	{
+		std::cout << "Calculating M\n";
+	}
 	if (green || QGC)
 	{
 		M = W;
@@ -534,7 +577,10 @@ int main(int argc, char** argv)
 			igl::lbs_matrix(V, W, M);
 		}
 	}
-	std::cout << "Done Calculating M\n";
+	if (verbosity)
+	{
+		std::cout << "Done Calculating M\n";
+	}
 	const int dim = C.cols();
 	auto translationFactors = createRegularSampling(numSamples, params.minFactor, params.maxFactor);
 	auto const numControlVertices = C.rows();
@@ -658,7 +704,10 @@ int main(int argc, char** argv)
 			else
 #endif
 			{
-				std::cout << "Writing " << prefix + middle + variant_string + std::string(".obj") << "\n";
+				if (verbosity)
+				{
+					std::cout << "Writing " << prefix + middle + variant_string + std::string(".obj") << "\n";
+				}
 				igl::writeOBJ(prefix + middle + variant_string + std::string(".obj"), U_model, T_model);
 			}
 		}

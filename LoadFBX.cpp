@@ -1,5 +1,7 @@
 #include "LoadFBX.h"
 
+#include "globals.h"
+
 #include <vector>
 #include <ofbx.h>
 #include <iostream>
@@ -97,14 +99,20 @@ bool load_fbx_file(const std::string& fbxFile, Eigen::MatrixXd & V_model, Eigen:
 
 	auto const scene = ofbx::load(content.data(), file_size, 0);
 
-	std::cout << "Mesh Count is " << scene->getMeshCount() << "\n";
+	if (verbosity)
+	{
+		std::cout << "Mesh Count is " << scene->getMeshCount() << "\n";
+	}
 
 	for (int mesh_idx = 0; mesh_idx < scene->getMeshCount(); ++mesh_idx)
 	{
 		std::string mesh_name(scene->getMesh(mesh_idx)->name);
 		std::transform(mesh_name.begin(), mesh_name.end(), mesh_name.begin(),
 			[](unsigned char c) { return std::tolower(c); });
-		std::cout << "Loading " << mesh_name << "\n";
+		if (verbosity)
+		{
+			std::cout << "Loading " << mesh_name << "\n";
+		}
 		if (mesh_name.find("cage") != std::string::npos)
 		{
 			load_mesh(scene, mesh_idx, V_cage, T_cage);

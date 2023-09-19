@@ -3,7 +3,7 @@
 
 #include <cuda_runtime.h>
 #include "helper_cuda.h"
-#include <iostream>
+#include <spdlog/spdlog.h>
 
 typedef float scalar_t;
 typedef int   index_t;
@@ -112,10 +112,10 @@ class cuda_cage_precomputer
     devID = findCudaDevice(0, NULL);
 
     if (devID < 0) {
-      std::cout << "No CUDA Capable devices found" << std::endl;
+      spdlog::error("No CUDA Capable devices found");
       exit(EXIT_SUCCESS);
     } else {
-      std::cout << "device ID=" << devID << std::endl;
+      spdlog::info("device ID={}", devID);
     }
 
     // cage and V

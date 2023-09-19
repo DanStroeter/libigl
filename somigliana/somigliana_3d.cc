@@ -1,7 +1,6 @@
 #include "somigliana_3d.h"
 
 #include <igl/read_triangle_mesh.h>
-#include <spdlog/spdlog.h>
 #include <boost/filesystem.hpp>
 #include <unsupported/Eigen/MatrixFunctions>
 #include <CGAL/Weights/cotangent_weights.h>

@@ -1,5 +1,7 @@
 #include "LoadMesh.h"
 
+#include "globals.h"
+
 #include <vector>
 #include <iostream>
 
@@ -145,7 +147,7 @@ bool load_cage(std::string const& file_name, Eigen::MatrixXd& V,
 					break;
 				}
 			}
-			if (found)
+			if (found && verbosity)
 			{
 				std::cout << "Found cage verts in embedding with an offset of " << cage_vertices_offset << "\n";
 			}
@@ -192,11 +194,11 @@ bool load_cage(std::string const& file_name, Eigen::MatrixXd& V,
 		}
 	}
 
-	if (triangulate_quads)
+	if (triangulate_quads && verbosity)
 	{
 		std::cout << "Cage Triangles: " << numTriangles << " Cage Vertices: " << V.rows() << "\n";
 	}
-	else
+	else if (verbosity)
 	{
 		std::cout << "Cage Triangles: " << numTriangles << " Cage Quads " << numQuads << " Cage Vertices: " << V.rows() << "\n";
 	}

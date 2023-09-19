@@ -6,6 +6,7 @@
 #include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
 #include <CGAL/Surface_mesh.h>
 #include <Eigen/Sparse>
+#include <spdlog/spdlog.h>
 
 #include "types.h"
 #include "cuda_impl.h"
@@ -36,10 +37,18 @@ struct tet_fem;
 class somig_deformer_3
 {
  public:
-  somig_deformer_3()
-      : mu_(1.0), nu_(0.0) {}
-  somig_deformer_3(const double nu)
-      : mu_(1.0), nu_(nu) {}
+  somig_deformer_3(bool quiet = false)
+      : mu_(1.0), nu_(0.0) {
+        if (quiet) {
+          spdlog::set_level(spdlog::level::warn);
+        }
+      }
+  somig_deformer_3(const double nu, bool quiet = false)
+      : mu_(1.0), nu_(nu) {
+        if (quiet) {
+          spdlog::set_level(spdlog::level::warn);
+        }
+      }
 
   void set_nu(const double nu) {
     nu_ = nu;

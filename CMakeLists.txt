@@ -31,6 +31,8 @@ endif()
 
 set(${PROJECT_NAME}_SOURCES
 	main.cpp
+	globals.h
+	globals.cpp
 	GreenCoordinates.h
 	GreenCoordinates.cpp
 	MaximumLikelihoodCoordinates.h

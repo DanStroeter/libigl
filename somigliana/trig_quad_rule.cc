@@ -36,7 +36,7 @@ void sym_trig_quad_rule(const size_t number,
                         VectorXd  &w) {
   // compute 1d Gauss quadrature [-1,1]
   const size_t n = sqrt(number/3);
-  cout << "#quadrature n=" << n << endl;
+  // cout << "#quadrature n=" << n << endl;
   
   VectorXd q1(n), w1(n);
   cgqf(n, 1, 0, 0, -1, 1, -1, q1.data(), w1.data());
@@ -88,7 +88,7 @@ void sym_trig_quad_rule(const size_t number,
       ++count;
     }
   }
-  cout << "#quadrature=" << count << endl;
+  // cout << "#quadrature=" << count << endl;
 }
 
 }
