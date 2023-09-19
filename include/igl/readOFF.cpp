@@ -114,7 +114,12 @@ IGL_INLINE bool igl::readOFF(
     {
       char comment[1000];
       fscanf(off_file,"%[^\n]",comment);
-    }else
+    }
+    else if (line[0] == '\n')
+    {
+      // Ignore empty line
+    }
+    else
     {
       printf("Error: bad line (%d)\n",i);
       if(feof(off_file))

@@ -250,7 +250,12 @@ IGL_INLINE bool igl::readOBJ(
             strcmp("mtllib",type)==0))
       {
         //ignore comments or other shit
-      }else
+      }
+      else if (type[0] == 'o')
+      {
+        // ignore object specifiers
+      }
+      else
       {
         //ignore any other lines
         fprintf(stderr,
