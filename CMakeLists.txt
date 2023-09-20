@@ -60,14 +60,13 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 set_directory_properties(PROPERTIES VS_STARTUP_PROJECT ${PROJECT_NAME})
 
 # Compile definitions for boost
-target_compile_definitions(${PROJECT_NAME} PUBLIC BOOST_PROGRAM_OPTIONS_DYN_LINK)
+# target_compile_definitions(${PROJECT_NAME} PUBLIC BOOST_PROGRAM_OPTIONS_DYN_LINK)
 target_compile_definitions(${PROJECT_NAME} PUBLIC BOOST_ALL_DYN_LINK)
 
 target_link_libraries(
 	${PROJECT_NAME}
 	PRIVATE
 	Boost::program_options
-	Boost::disable_autolinking
 	Eigen3::Eigen
 	LBC
 	OpenFBX

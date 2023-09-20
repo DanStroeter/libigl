@@ -546,7 +546,14 @@ int main(int argc, char** argv)
 	}
 	if (measure_time)
 	{
-		std::cout << "Calculating weights took " << timer->getElapsedTime() << "seconds\n";
+		if (verbosity)
+		{
+			std::cout << "Calculating weights took " << timer->getElapsedTime() << "seconds\n";
+		} 
+		else
+		{
+			std::cout << timer->getElapsedTime() << "seconds\n";
+		}
 	}
 	if (verbosity)
 	{

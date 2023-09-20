@@ -7,8 +7,8 @@ find_package(CGAL REQUIRED)
 find_package(spdlog REQUIRED)
 # LAPACK
 find_package(LAPACK REQUIRED)
-add_library(cuda_green SHARED cuda_impl.cu)
-set_target_properties(cuda_green PROPERTIES CUDA_ARCHITECTURES "35;52;72")
+add_library(cuda_green cuda_impl.cu)
+set_target_properties(cuda_green PROPERTIES CUDA_ARCHITECTURES native)
 target_link_libraries(cuda_green
   CUDA::cudart
   Eigen3::Eigen
@@ -16,7 +16,7 @@ target_link_libraries(cuda_green
   )
 
 file(GLOB source *.cc *.cpp *.f90)
-add_library(green SHARED ${source})
+add_library(green ${source})
 target_link_libraries(green
   igl::core
   ${Boost_LIBRARIES}
