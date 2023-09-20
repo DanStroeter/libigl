@@ -78,6 +78,7 @@ int main(int argc, char** argv)
 #endif
 		("LBC", "Use local barycentric coordinates by Zhang et al.")
 		("green", "Use green coordinates by Lipman et al.")
+		("BBW", "Use bounded biharmonic weights by Jacobson et al.")
 		("QGC", "Use tri-quad green coordinates")
 		("MLC", "Use maximum likelihood coordinates by Chang et al.")
 		// ("MEC", boost::program_options::value<int>(&mec_flag), "Use maximum entropy coordinates by Hormann et al.")
@@ -552,7 +553,7 @@ int main(int argc, char** argv)
 		} 
 		else
 		{
-			std::cout << timer->getElapsedTime() << "seconds\n";
+			std::cout << timer->getElapsedTime() << "\n";
 		}
 	}
 	if (verbosity)
