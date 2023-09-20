@@ -17,7 +17,7 @@ def eval_runtime(meshFile, cageFile, cageDeformedFile, embeddingFile, outFile, c
     pipe = subprocess.Popen(command, stdout=subprocess.PIPE)
     log = pipe.communicate()[0].decode("utf-8")
     if (pipe.returncode != 0):
-        print('cageDeformation3D failed for' + command)
+        print('cageDeformation3D failed for ' + str(command))
         print(log)
     return float(log)
 
@@ -37,6 +37,7 @@ def eval_runtimes_meshes():
         writer.writerow(runtimes_row)
 
 def main():
+    os.chdir('../models')
     eval_runtimes_meshes()
 
 
